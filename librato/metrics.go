@@ -13,14 +13,19 @@ type MetricsService struct {
 
 // Metric represents a Librato Metric.
 type Metric struct {
-	Name        *string           `json:"name"`
-	Description *string           `json:"description,omitempty"`
-	Type        *string           `json:"type"`
-	Period      *uint             `json:"period,omitempty"`
-	DisplayName *string           `json:"display_name,omitempty"`
-	Composite   *string           `json:"composite,omitempty"`
-	Attributes  *MetricAttributes `json:"attributes,omitempty"`
+	Name         *string           `json:"name"`
+	Description  *string           `json:"description,omitempty"`
+	Type         *string           `json:"type"`
+	Period       *uint             `json:"period,omitempty"`
+	DisplayName  *string           `json:"display_name,omitempty"`
+	Composite    *string           `json:"composite,omitempty"`
+	Attributes   *MetricAttributes `json:"attributes,omitempty"`
+	Resolution   *uint             `json:"resolution,omitempty"`
+	Start_time   *uint             `json:"start_time,omitempty"`
+	Measurements *MeasurementsMap  `json:"measurements,omitempty"`
 }
+
+type MeasurementsMap map[string]interface{}
 
 // MetricAttributes are named attributes as key:value pairs.
 type MetricAttributes struct {
@@ -93,20 +98,49 @@ func (m *MetricsService) List(opts *ListMetricsOptions) ([]Metric, *ListMetricsR
 // Get a metric by name
 //
 // Librato API docs: https://www.librato.com/docs/api/#retrieve-a-metric-by-name
-func (m *MetricsService) Get(name string) (*Metric, *http.Response, error) {
-	u := fmt.Sprintf("metrics/%s", name)
+func (m *MetricsService) Get(name string, mr *MeasurementRetrievals) (*Metric, *http.Response, error) {
+	var u string
+
+	if mr == nil {
+		u = fmt.Sprintf("metrics/%s", name)
+	} else {
+		u = fmt.Sprintf("metrics/%s?", mr.Name)
+		if mr.Resolution != 0 {
+			u = fmt.Sprintf("%sresolution=%d&", u, mr.Resolution)
+		}
+		if mr.StartTime != 0 {
+			u = fmt.Sprintf("%sstart_time=%d&", u, mr.StartTime)
+		}
+		if mr.EndTime != 0 {
+			u = fmt.Sprintf("%send_time=%d&", u, mr.EndTime)
+		}
+		if mr.Count != 0 {
+			u = fmt.Sprintf("%scount=%d&", u, mr.Count)
+		}
+	}
+
 	req, err := m.client.NewRequest("GET", u, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	metric := new(Metric)
+
 	resp, err := m.client.Do(req, metric)
 	if err != nil {
 		return nil, resp, err
 	}
 
 	return metric, resp, err
+}
+
+// MeasurementRetrieval represents the measurement request to retrieve an metric.
+type MeasurementRetrievals struct {
+	Name        string
+	Resolution  int
+	StartTime   int
+	EndTime     int
+	Count       int
 }
 
 // MeasurementSubmission represents the payload to submit/create a metric.
